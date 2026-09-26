@@ -1,0 +1,35 @@
+{
+  "_info": "Réglages du bot. Les identifiants Telegram vont dans les Secrets GitHub, jamais ici.",
+  "intervalle_secondes": 90,
+  "heure_message_quotidien": 9,
+  "fin_surveillance": "2026-10-13T23:59",
+  "erreurs_avant_alerte": 5,
+  "rappels": { "nombre": 3, "minutes": 10 },
+  "sources": [
+    {
+      "nom": "Galatasaray.org — Bilet Duyuruları (annonces billetterie)",
+      "type": "liens",
+      "officielle": true,
+      "url": "https://www.galatasaray.org/haberler/futbol/biletler/321",
+      "filtre_lien": "/biletler/",
+      "mots_cles": [["barcelona", "barselona", "barca"]]
+    },
+    {
+      "nom": "Galatasaray.org — flux RSS officiel",
+      "type": "rss",
+      "officielle": true,
+      "url": "https://www.galatasaray.org/xml/gs.rss",
+      "mots_cles": [["barcelona", "barselona", "barca"], ["bilet", "ticket", "passo"]]
+    },
+    {
+      "nom": "Presse turque (Google Actualités)",
+      "type": "rss",
+      "officielle": false,
+      "rappels": false,
+      "url": "https://news.google.com/rss/search?q=Galatasaray+Barcelona+bilet&hl=tr&gl=TR&ceid=TR:tr",
+      "age_max_heures": 72,
+      "mots_cles": [["barcelona", "barselona"], ["bilet"], ["satis", "passo"]],
+      "exclure": ["ne zaman satisa cikacak", "ne zaman cikacak", "satisa cikti mi", "ne kadar olacak"]
+    }
+  ]
+}
