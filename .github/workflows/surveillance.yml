@@ -1,0 +1,62 @@
+name: Surveillance billets GS-Barça
+
+on:
+  schedule:
+    # Un run démarre toutes les 15 min et vérifie en boucle pendant 20 min
+    # (toutes les ~90 s). Les runs s'enchaînent : surveillance quasi continue,
+    # même si GitHub lance un run en retard.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Mode d'exécution"
+        type: choice
+        options: [test, simulation, once]
+        default: test
+
+concurrency:
+  group: surveillance-billets
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Restaurer l'historique des alertes
+        uses: actions/cache/restore@v4
+        with:
+          path: state.json
+          key: etat-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: etat-
+
+      - name: Vérifier les sources
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          MODE: ${{ github.event.inputs.mode }}
+        run: |
+          if [ -n "$MODE" ]; then
+            python bot_billets.py --"$MODE"
+          else
+            python bot_billets.py --duree 20
+          fi
+
+      - name: Sauvegarder l'historique des alertes
+        if: always() && hashFiles('state.json') != ''
+        uses: actions/cache/save@v4
+        with:
+          path: state.json
+          key: etat-${{ github.run_id }}-${{ github.run_attempt }}
