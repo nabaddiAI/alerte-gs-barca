@@ -121,6 +121,45 @@ def double_heure(d=None):
     return f"{d.astimezone(FUSEAU):%d/%m %H:%M} Istanbul · {d.astimezone(FUSEAU_MAROC):%H:%M} Maroc"
 
 
+# ---------------------------------------------------------------- traduction
+
+_CACHE_TRADUCTION = {}
+LANGUE_CIBLE = "fr"
+
+
+def traduire(texte):
+    """Traduit un titre en français (service gratuit Google, sans clé).
+    En cas d'échec, renvoie None : l'alerte part quand même, en turc."""
+    texte = (texte or "").strip()
+    if not texte or not LANGUE_CIBLE:
+        return None
+    if texte in _CACHE_TRADUCTION:
+        return _CACHE_TRADUCTION[texte]
+    traduction = None
+    try:
+        r = requests.get(
+            "https://translate.googleapis.com/translate_a/single",
+            params={"client": "gtx", "sl": "auto", "tl": LANGUE_CIBLE, "dt": "t", "q": texte},
+            headers=ENTETES,
+            timeout=10,
+        )
+        r.raise_for_status()
+        morceaux = r.json()[0]
+        traduction = "".join(m[0] for m in morceaux if m and m[0]).strip() or None
+        if traduction and normaliser(traduction) == normaliser(texte):
+            traduction = None  # déjà en français / rien à traduire
+    except Exception as e:
+        log(f"[traduction] impossible : {e}")
+    _CACHE_TRADUCTION[texte] = traduction
+    return traduction
+
+
+def avec_traduction(titre):
+    """Titre original + ligne traduite en dessous."""
+    traduction = traduire(titre)
+    return f"{titre}\n🇫🇷 {traduction}" if traduction else titre
+
+
 # ---------------------------------------------------------------- Telegram
 
 def identifiants_telegram():
@@ -266,7 +305,7 @@ def message_alerte(source, resultat):
     publie = f"Publié : {double_heure(resultat['publie'])}\n" if resultat.get("publie") else ""
     return (
         f"{entete}\n\n"
-        f"{resultat['titre']}\n"
+        f"{avec_traduction(resultat['titre'])}\n"
         f"{resultat['lien']}\n\n"
         f"Source : {source['nom']}\n"
         f"{publie}"
@@ -322,7 +361,7 @@ def verifier(config, etat, local=False):
                     envoyer(
                         f"ℹ️ Démarrage : {len(resultats)} article(s) déjà publié(s) sur « {nom} » "
                         "ont été mémorisés sans alerte. Plus récent :\n"
-                        + "\n".join(f"· {r['titre'][:110]}" for r in resultats[:3]),
+                        + "\n".join(f"· {avec_traduction(r['titre'][:150])}" for r in resultats[:3]),
                         silencieux=True,
                     )
                 continue
@@ -400,6 +439,11 @@ def mode_test(config):
             tout_ok = False
             lignes.append(f"❌ {source['nom']} ({str(e)[:60]})")
             print(f"- {source['nom']} : ÉCHEC → {e}")
+    print("\n=== Test traduction ===")
+    exemple = traduire("Galatasaray - Barcelona maçının biletleri satışa çıktı")
+    print(f"Traduction : {exemple or 'ÉCHEC (les titres resteront en turc)'}")
+    lignes.append(f"✅ Traduction : « {exemple} »" if exemple
+                  else "⚠️ Traduction indisponible (titres en turc)")
     print("\n=== Test Telegram ===")
     ok = envoyer(
         "🧪 Test réussi ! Le bot d'alerte Galatasaray – Barcelona est bien connecté.\n\n"
@@ -438,6 +482,8 @@ def main():
     if config is None:
         print("config.json introuvable ou invalide.")
         return 1
+    global LANGUE_CIBLE
+    LANGUE_CIBLE = config.get("langue_traduction", "fr")
 
     if args.trouver_chat_id:
         return trouver_chat_id()
