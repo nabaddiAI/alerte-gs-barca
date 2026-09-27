@@ -2,6 +2,7 @@
   "_info": "Réglages du bot. Les identifiants Telegram vont dans les Secrets GitHub, jamais ici.",
   "intervalle_secondes": 90,
   "heure_message_quotidien": 9,
+  "langue_traduction": "fr",
   "fin_surveillance": "2026-10-13T23:59",
   "erreurs_avant_alerte": 5,
   "rappels": { "nombre": 3, "minutes": 10 },
