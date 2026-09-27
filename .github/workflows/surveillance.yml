@@ -2,16 +2,15 @@ name: Surveillance billets GS-Barça
 
 on:
   schedule:
-    # Un run démarre toutes les 15 min et vérifie en boucle pendant 20 min
-    # (toutes les ~90 s). Les runs s'enchaînent : surveillance quasi continue,
-    # même si GitHub lance un run en retard.
+    # Filet de sécurité : GitHub ne lance en pratique ces runs planifiés
+    # que toutes les 2 à 6 heures. La continuité vient du relais ci-dessous.
     - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
       mode:
         description: "Mode d'exécution"
         type: choice
-        options: [test, simulation, once]
+        options: [test, simulation, surveillance, once]
         default: test
 
 concurrency:
@@ -20,11 +19,12 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write
 
 jobs:
   verifier:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -48,10 +48,11 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           MODE: ${{ github.event.inputs.mode }}
         run: |
-          if [ -n "$MODE" ]; then
+          if [ -n "$MODE" ] && [ "$MODE" != "surveillance" ]; then
             python bot_billets.py --"$MODE"
           else
-            python bot_billets.py --duree 20
+            # Surveillance en boucle pendant 5h30 (toutes les ~90 s)
+            python bot_billets.py --duree 330
           fi
 
       - name: Sauvegarder l'historique des alertes
@@ -60,3 +61,16 @@ jobs:
         with:
           path: state.json
           key: etat-${{ github.run_id }}-${{ github.run_attempt }}
+
+      # Relais : à la fin d'un run de surveillance, on relance aussitôt le suivant
+      # (jusqu'au 13/10 à 23h59 heure d'Istanbul = 20h59 UTC).
+      - name: Relancer la surveillance
+        if: success() && (github.event_name == 'schedule' || github.event.inputs.mode == 'surveillance')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(date -u +%Y%m%d%H%M)" -lt 202610132059 ]; then
+            gh workflow run surveillance.yml --ref main -f mode=surveillance
+          else
+            echo "Match passé : pas de relance."
+          fi
